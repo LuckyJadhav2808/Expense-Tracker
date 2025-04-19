@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Expense Tracker</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div class="container">
+
+        <!-- Sidebar with Categories and Calculator -->
+        <aside class="sidebar">
+            <h3>Categories</h3>
+            <div id="category-list" class="category-list"></div>
+            <input type="text" id="new-category" placeholder="Add New Category" />
+            <button onclick="addCategory()">Add Category</button>
+
+            <!-- Calculator -->
+            <div class="calculator">
+                <h4>Quick Calculator</h4>
+                <input type="text" id="calc-display" readonly />
+                <div class="calc-grid">
+                    <button onclick="appendToCalc('7')">7</button>
+                    <button onclick="appendToCalc('8')">8</button>
+                    <button onclick="appendToCalc('9')">9</button>
+                    <button onclick="appendToCalc('/')">÷</button>
+
+                    <button onclick="appendToCalc('4')">4</button>
+                    <button onclick="appendToCalc('5')">5</button>
+                    <button onclick="appendToCalc('6')">6</button>
+                    <button onclick="appendToCalc('*')">×</button>
+
+                    <button onclick="appendToCalc('1')">1</button>
+                    <button onclick="appendToCalc('2')">2</button>
+                    <button onclick="appendToCalc('3')">3</button>
+                    <button onclick="appendToCalc('-')">−</button>
+
+                    <button onclick="clearCalc()">C</button>
+                    <button onclick="appendToCalc('0')">0</button>
+                    <button onclick="calculate()">=</button>
+                    <button onclick="appendToCalc('+')">+</button>
+                </div>
+            </div>
+
+            <!-- Budget Section -->
+            <div class="budget-section">
+                <h4>Set Monthly Budget</h4>
+                <input type="number" id="monthly-budget" placeholder="Enter your budget" />
+                <button onclick="setBudget()">Set Budget</button>
+                <div id="budget-progress" class="progress-container">
+                    <div id="budget-progress-bar" class="progress-bar"></div>
+                </div>
+                <p id="budget-message"></p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <h2>Expense Tracker</h2>
+
+            <!-- Expense Form -->
+            <form id="expense-form">
+                <input type="number" id="amount" placeholder="Amount" required />
+                <select id="category-select" required>
+                    <option value="" disabled selected>Select Category</option>
+                </select>
+                <input type="text" id="note" placeholder="Note" />
+                <input type="date" id="date" required />
+                <button type="submit">Add Expense</button>
+            </form>
+
+            <!-- Total Display -->
+            <h3>Total Today: <span id="total">₹0.00</span></h3>
+
+            <!-- Search by Date -->
+            <div class="search-section">
+                <input type="date" id="search-date" />
+                <button onclick="searchByDate()">Search</button>
+            </div>
+
+            <h3>Expenses for <span id="searched-date">Select a date to view expenses</span></h3>
+            <table id="searched-expenses-table">
+                <thead>
+                    <tr>
+                        <th>Amount</th>
+                        <th>Category</th>
+                        <th>Note</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <!-- Expense Table -->
+            <section>
+                <table id="expense-table">
+                    <thead>
+                        <tr>
+                            <th>Amount</th>
+                            <th>Category</th>
+                            <th>Note</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+
+            <!-- Export Data -->
+            <div class="export-section">
+                <button onclick="exportExpenses()">Export Data (CSV)</button>
+            </div>
+
+            <!-- Chart -->
+            <div class="chart-container">
+                <canvas id="expense-chart"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <!-- Dark Mode Toggle -->
+    <button id="dark-mode-toggle" style="position: fixed; top: 20px; right: 20px; z-index: 999; background: none; border: none; font-size: 1.5rem; cursor: pointer;">🌙</button>
+
+
+    <script>
+        // ----- GLOBALS -----
+        let expenses = [];
+        let categories = [];
+        let monthlyBudget = 0;
+        let expenseChart = null;
+
+        // DOM references
+        const totalDisplay = document.getElementById("total");
+        const expenseTable = document.getElementById("expense-table").getElementsByTagName("tbody")[0];
+        const categorySelect = document.getElementById("category-select");
+
+        // ----- LOAD EVERYTHING ON START -----
+        window.onload = function () {
+            // Load categories
+            const storedCategories = localStorage.getItem("expenseCategories");
+            if (storedCategories) categories = JSON.parse(storedCategories);
+
+            // Load expenses
+            const storedExpenses = localStorage.getItem("myExpenses");
+            if (storedExpenses) expenses = JSON.parse(storedExpenses);
+
+            // Load budget
+            const savedBudget = localStorage.getItem("monthlyBudget");
+            if (savedBudget) monthlyBudget = parseFloat(savedBudget);
+
+            // Load dark mode
+            if (localStorage.getItem("darkMode") === 'true') toggleDarkMode(true);
+
+            updateCategoryUI();
+            updateExpenseUI();
+            updateBudgetProgress();
+            updateChart();
+        };
+
+        // ----- CATEGORY FUNCTIONS -----
+        function addCategory() {
+            const input = document.getElementById("new-category");
+            const newCat = input.value.trim();
+            if (!newCat || categories.includes(newCat)) return alert("Invalid or duplicate category.");
+
+            categories.push(newCat);
+            localStorage.setItem("expenseCategories", JSON.stringify(categories));
+            input.value = "";
+            updateCategoryUI();
+        }
+
+        function removeCategory(cat) {
+            categories = categories.filter(c => c !== cat);
+            expenses = expenses.filter(e => e.category !== cat);
+            localStorage.setItem("expenseCategories", JSON.stringify(categories));
+            localStorage.setItem("myExpenses", JSON.stringify(expenses));
+            updateCategoryUI();
+            updateExpenseUI();
+            updateChart();
+        }
+
+        function updateCategoryUI() {
+            const list = document.getElementById("category-list");
+            list.innerHTML = "";
+            categorySelect.innerHTML = '<option value="" disabled selected>Select Category</option>';
+            categories.forEach(cat => {
+                const option = document.createElement("option");
+                option.value = cat;
+                option.textContent = cat;
+                categorySelect.appendChild(option);
+
+                list.innerHTML += `<div class="category-item">
+                    <span>${cat}</span>
+                    <button onclick="removeCategory('${cat}')">❌</button>
+                </div>`;
+            });
+        }
+
+        // ----- EXPENSE FUNCTIONS -----
+        document.getElementById("expense-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById("amount").value);
+            const category = categorySelect.value;
+            const note = document.getElementById("note").value;
+            const date = document.getElementById("date").value;
+
+            if (isNaN(amount) || !category || !date) return alert("Fill all required fields.");
+
+            const newExpense = { amount, category, note, date };
+            expenses.push(newExpense);
+            localStorage.setItem("myExpenses", JSON.stringify(expenses));
+            this.reset();
+            updateExpenseUI();
+            updateChart();
+            updateBudgetProgress();
+        });
+
+        function updateExpenseUI() {
+            expenseTable.innerHTML = "";
+            expenses.forEach((e, i) => {
+                const row = expenseTable.insertRow();
+                row.innerHTML = `
+                    <td>₹${e.amount.toFixed(2)}</td>
+                    <td>${e.category}</td>
+                    <td>${e.note || "-"}</td>
+                    <td>${e.date}</td>
+                    <td><button onclick="deleteExpense(${i})">Delete</button></td>
+                `;
+            });
+            updateTotalToday();
+        }
+
+        function deleteExpense(index) {
+            expenses.splice(index, 1);
+            localStorage.setItem("myExpenses", JSON.stringify(expenses));
+            updateExpenseUI();
+            updateChart();
+            updateBudgetProgress();
+        }
+
+        function updateTotalToday() {
+            const today = new Date().toISOString().split("T")[0];
+            const total = expenses.filter(e => e.date === today).reduce((sum, e) => sum + e.amount, 0);
+            totalDisplay.textContent = `₹${total.toFixed(2)}`;
+        }
+
+        function searchByDate() {
+            const date = document.getElementById("search-date").value;
+            const table = document.getElementById("searched-expenses-table").getElementsByTagName("tbody")[0];
+            const label = document.getElementById("searched-date");
+            if (!date) return alert("Please select a date.");
+
+            label.textContent = date;
+            const results = expenses.filter(e => e.date === date);
+            table.innerHTML = results.length
+                ? results.map(e => `<tr>
+                        <td>₹${e.amount.toFixed(2)}</td>
+                        <td>${e.category}</td>
+                        <td>${e.note}</td>
+                        <td>${e.date}</td>
+                    </tr>`).join("")
+                : `<tr><td colspan="4" style="text-align:center;">No expenses found.</td></tr>`;
+        }
+
+        function exportExpenses() {
+            const header = 'Amount,Category,Note,Date\n';
+            const rows = expenses.map(e => `${e.amount},${e.category},${e.note},${e.date}`).join("\n");
+            const blob = new Blob([header + rows], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "expenses.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ----- BUDGET -----
+        function setBudget() {
+            const value = parseFloat(document.getElementById("monthly-budget").value);
+            if (isNaN(value) || value <= 0) return alert("Enter valid budget.");
+            monthlyBudget = value;
+            localStorage.setItem("monthlyBudget", value);
+            updateBudgetProgress();
+        }
+
+        function updateBudgetProgress() {
+            const currentMonth = new Date().toISOString().slice(0, 7);
+            const spent = expenses.filter(e => e.date.startsWith(currentMonth)).reduce((sum, e) => sum + e.amount, 0);
+            const percent = (spent / monthlyBudget) * 100;
+            const bar = document.getElementById("budget-progress-bar");
+            const msg = document.getElementById("budget-message");
+
+            bar.style.width = `${Math.min(percent, 100)}%`;
+            if (percent > 100) {
+                msg.textContent = `You exceeded your budget! (₹${spent} of ₹${monthlyBudget})`;
+                msg.style.color = "red";
+            } else if (percent > 80) {
+                msg.textContent = `Warning: Close to limit. (₹${spent} of ₹${monthlyBudget})`;
+                msg.style.color = "orange";
+            } else {
+                msg.textContent = `All good! (₹${spent} of ₹${monthlyBudget})`;
+                msg.style.color = "green";
+            }
+        }
+
+        // ----- CHART -----
+        function updateChart() {
+            const ctx = document.getElementById("expense-chart").getContext("2d");
+            if (expenseChart) expenseChart.destroy();
+
+            const totals = categories.map(cat =>
+                expenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0)
+            );
+
+            expenseChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: categories,
+                    datasets: [{
+                        label: "Expenses by Category",
+                        data: totals,
+                        backgroundColor: 'rgba(0,123,255,0.5)',
+                        borderColor: 'rgba(0,123,255,1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // ----- CALCULATOR -----
+        let calcValue = "";
+        const calcDisplay = document.getElementById("calc-display");
+
+        function appendToCalc(val) {
+            calcValue += val;
+            calcDisplay.value = calcValue;
+        }
+
+        function clearCalc() {
+            calcValue = "";
+            calcDisplay.value = "";
+        }
+
+        function calculate() {
+            try {
+                calcValue = eval(calcValue).toString();
+                calcDisplay.value = calcValue;
+            } catch {
+                calcDisplay.value = "Error";
+                calcValue = "";
+            }
+        }
+
+        // ----- DARK MODE -----
+        const darkToggle = document.getElementById("dark-mode-toggle");
+        darkToggle.addEventListener("click", () => {
+            toggleDarkMode();
+        });
+
+        function toggleDarkMode(force = null) {
+            const isDark = force !== null ? force : !document.body.classList.contains("dark-mode");
+            document.body.classList.toggle("dark-mode", isDark);
+            document.querySelector(".sidebar").classList.toggle("dark-mode", isDark);
+            document.querySelector(".main-content").classList.toggle("dark-mode", isDark);
+            localStorage.setItem("darkMode", isDark);
+        }
+    </script>
+</body>
+</html>

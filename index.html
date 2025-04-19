@@ -74,6 +74,12 @@
 
             <!-- Total Display -->
             <h3>Total Today: <span id="total">₹0.00</span></h3>
+            <!-- Filter by Month -->
+<div class="filter-section">
+    <label for="month-filter">Filter by Month:</label>
+    <input type="month" id="month-filter">
+    <button onclick="filterByMonth()">Apply</button>
+</div>
 
             <!-- Search by Date -->
             <div class="search-section">
@@ -109,6 +115,11 @@
                     <tbody></tbody>
                 </table>
             </section>
+            <div class="show-buttons">
+                <button onclick="showMore()">Show More</button>
+                <button onclick="showLess()">Show Less</button>
+            </div>
+            
 
             <!-- Export Data -->
             <div class="export-section">
@@ -127,6 +138,8 @@
 
 
     <script>
+        let visibleCount = 5;
+
         // ----- GLOBALS -----
         let expenses = [];
         let categories = [];
@@ -220,19 +233,29 @@
         });
 
         function updateExpenseUI() {
-            expenseTable.innerHTML = "";
-            expenses.forEach((e, i) => {
-                const row = expenseTable.insertRow();
-                row.innerHTML = `
-                    <td>₹${e.amount.toFixed(2)}</td>
-                    <td>${e.category}</td>
-                    <td>${e.note || "-"}</td>
-                    <td>${e.date}</td>
-                    <td><button onclick="deleteExpense(${i})">Delete</button></td>
-                `;
-            });
-            updateTotalToday();
-        }
+    expenseTable.innerHTML = "";
+
+    // Sort expenses by date (latest first)
+    const sortedExpenses = [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const visibleExpenses = sortedExpenses.slice(0, visibleCount);
+
+    visibleExpenses.forEach((exp, index) => {
+        const row = expenseTable.insertRow();
+        row.innerHTML = `
+            <td>₹${exp.amount.toFixed(2)}</td>
+            <td>${exp.category}</td>
+            <td>${exp.note || "-"}</td>
+            <td>${exp.date}</td>
+            <td><button onclick="deleteExpense(${expenses.indexOf(exp)})">Delete</button></td>
+        `;
+    });
+
+    updateTotalToday();
+    updateShowButtons();
+}
+
+
 
         function deleteExpense(index) {
             expenses.splice(index, 1);
@@ -374,6 +397,57 @@
             document.querySelector(".main-content").classList.toggle("dark-mode", isDark);
             localStorage.setItem("darkMode", isDark);
         }
+        function filterByMonth() {
+    const selectedMonth = document.getElementById('month-filter').value; // yyyy-mm
+    if (!selectedMonth) {
+        alert("Please select a month.");
+        return;
+    }
+
+    const filtered = expenses.filter(exp => exp.date.slice(0, 7) === selectedMonth);
+    displayFilteredExpenses(filtered, `Expenses for ${selectedMonth}`);
+}
+
+function displayFilteredExpenses(data, label) {
+    const searchedExpensesTable = document.getElementById('searched-expenses-table').getElementsByTagName('tbody')[0];
+    const searchedDateLabel = document.getElementById('searched-date');
+
+    searchedDateLabel.textContent = label;
+    searchedExpensesTable.innerHTML = "";
+
+    if (data.length === 0) {
+        const row = searchedExpensesTable.insertRow();
+        row.innerHTML = `<td colspan="4" style="text-align:center;">No expenses found.</td>`;
+    } else {
+        data.forEach(exp => {
+            const row = searchedExpensesTable.insertRow();
+            row.innerHTML = `
+                <td>₹${exp.amount.toFixed(2)}</td>
+                <td>${exp.category}</td>
+                <td>${exp.note || '-'}</td>
+                <td>${exp.date}</td>
+            `;
+        });
+    }
+}
+function showMore() {
+    visibleCount += 5;
+    updateExpenseUI();
+}
+
+function showLess() {
+    visibleCount = Math.max(5, visibleCount - 5);
+    updateExpenseUI();
+}
+
+function updateShowButtons() {
+    const showLessBtn = document.querySelector(".show-buttons button:nth-child(2)");
+    const showMoreBtn = document.querySelector(".show-buttons button:nth-child(1)");
+    
+    showLessBtn.style.display = visibleCount > 5 ? 'inline-block' : 'none';
+    showMoreBtn.style.display = visibleCount < expenses.length ? 'inline-block' : 'none';
+}
+
     </script>
 </body>
 </html>
